@@ -1,15 +1,22 @@
 import React, { useState } from 'react'
 import { sendComfyRequest } from './api'
 
+function isLikelyBase64(value, minLength = 100) {
+  if (typeof value !== 'string') return false
+  const normalized = value.replace(/\s+/g, '')
+  if (normalized.length < minLength || normalized.length % 4 !== 0) return false
+  return /^(?:[A-Za-z0-9+/]+={0,2})$/.test(normalized)
+}
+
 function findBase64(obj) {
   if (!obj) return null
-  if (typeof obj === 'string' && /^([A-Za-z0-9+/]+=*)$/.test(obj)) return obj
-  if (typeof obj === 'string' && obj.startsWith('data:')) return obj.split(',')[1]
+  if (typeof obj === 'string' && isLikelyBase64(obj)) return obj.replace(/\s+/g, '')
+  if (typeof obj === 'string' && obj.startsWith('data:')) return obj.split(',')[1]?.replace(/\s+/g, '') || null
   if (typeof obj === 'object') {
     for (const k of Object.keys(obj)) {
       const v = obj[k]
-      if (typeof v === 'string' && (v.length > 100 && /^(?:[A-Za-z0-9+/]+=*)$/.test(v.replace(/\n/g,'')))) return v
-      if (typeof v === 'string' && v.startsWith('data:')) return v.split(',')[1]
+      if (typeof v === 'string' && isLikelyBase64(v)) return v.replace(/\s+/g, '')
+      if (typeof v === 'string' && v.startsWith('data:')) return v.split(',')[1]?.replace(/\s+/g, '') || null
       if (typeof v === 'object') {
         const found = findBase64(v)
         if (found) return found
@@ -17,6 +24,26 @@ function findBase64(obj) {
     }
   }
   return null
+}
+
+function buildObsidianMarkdown(response, date, imageName = null) {
+  return `---
+source: ComfyUI
+date: ${date}
+---
+
+# ${imageName ? 'ComfyUI Output' : 'ComfyUI Response'}
+
+${imageName ? `![[${imageName}]]` : ''}
+
+---
+
+JSON response:
+
+\`\`\`json
+${JSON.stringify(response, null, 2)}
+\`\`\`
+`
 }
 
 export default function App() {
@@ -53,29 +80,25 @@ export default function App() {
     if (!response) return
     const b64 = findBase64(response)
     const timestamp = new Date().toISOString().replace(/[:.]/g,'-')
+    const date = new Date().toISOString()
     const imageName = `comfyui-output-${timestamp}.png`
+    let markdownImageName = null
     if (b64) {
-      const byteChars = atob(b64)
-      const byteNumbers = new Array(byteChars.length)
-      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i)
-      const byteArray = new Uint8Array(byteNumbers)
-      const blob = new Blob([byteArray], { type: 'image/png' })
-      // trigger image download
-      download(imageName, blob)
-      // create markdown referencing the image file (Obsidian-friendly)
-      const md = `---\nsource: ComfyUI\ndate: ${new Date().toISOString()}\n---\n\n# ComfyUI Output\n\n![[${imageName}]]\n\n\n---\n\nJSON response:\n\n\n\n\`
-${JSON.stringify(response, null, 2)}
-\n\n\n`
-      const mdBlob = new Blob([md], { type: 'text/markdown' })
-      download(`comfyui-note-${timestamp}.md`, mdBlob)
-    } else {
-      // No base64: save JSON response as a note
-      const md = `---\nsource: ComfyUI\ndate: ${new Date().toISOString()}\n---\n\n# ComfyUI Response\n\n\n\n\`
-${JSON.stringify(response, null, 2)}
-\n\n\n`
-      const mdBlob = new Blob([md], { type: 'text/markdown' })
-      download(`comfyui-note-${timestamp}.md`, mdBlob)
+      try {
+        const byteChars = atob(b64)
+        const byteNumbers = new Array(byteChars.length)
+        for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i)
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: 'image/png' })
+        download(imageName, blob)
+        markdownImageName = imageName
+      } catch (err) {
+        console.error('Failed to decode detected base64 image data', err)
+      }
     }
+    const md = buildObsidianMarkdown(response, date, markdownImageName)
+    const mdBlob = new Blob([md], { type: 'text/markdown' })
+    download(`comfyui-note-${timestamp}.md`, mdBlob)
   }
 
   return (
