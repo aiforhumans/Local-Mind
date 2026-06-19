@@ -1,9 +1,12 @@
 import React, { useState } from 'react'
 import { sendComfyRequest } from './api'
 
+const WHITESPACE_RE = /\s+/g
+const BASE64_RE = /^(?:[A-Za-z0-9+/]+={0,2})$/
+
 function normalizeBase64(value) {
   if (typeof value !== 'string') return null
-  const normalized = value.replace(/\s+/g, '')
+  const normalized = value.replace(WHITESPACE_RE, '')
   const remainder = normalized.length % 4
   if (remainder === 1) return null
   if (remainder === 0) return normalized
@@ -14,7 +17,7 @@ function getNormalizedBase64(value, minLength = 100) {
   if (typeof value !== 'string') return null
   const normalized = normalizeBase64(value)
   if (!normalized || normalized.length < minLength) return null
-  if (!/^(?:[A-Za-z0-9+/]+={0,2})$/.test(normalized)) return null
+  if (!BASE64_RE.test(normalized)) return null
   return normalized
 }
 
@@ -45,6 +48,8 @@ function findBase64(obj) {
 }
 
 function buildObsidianMarkdown(response, date, imageName = null) {
+  const safeJson = JSON.stringify(response, null, 2).replaceAll('```', '\\`\\`\\`')
+
   return `---
 source: ComfyUI
 date: ${date}
@@ -59,7 +64,7 @@ ${imageName ? `Image:\n\n![[${imageName}]]\n` : ''}
 JSON response:
 
 \`\`\`json
-${JSON.stringify(response, null, 2)}
+${safeJson}
 \`\`\`
 `
 }
