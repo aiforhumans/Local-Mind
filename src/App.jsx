@@ -3,20 +3,29 @@ import { sendComfyRequest } from './api'
 
 function isLikelyBase64(value, minLength = 100) {
   if (typeof value !== 'string') return false
-  const normalized = value.replace(/\s+/g, '')
-  if (normalized.length < minLength || normalized.length % 4 !== 0) return false
+  const normalized = normalizeBase64(value)
+  if (!normalized || normalized.length < minLength) return false
   return /^(?:[A-Za-z0-9+/]+={0,2})$/.test(normalized)
+}
+
+function normalizeBase64(value) {
+  if (typeof value !== 'string') return null
+  const normalized = value.replace(/\s+/g, '')
+  const remainder = normalized.length % 4
+  if (remainder === 1) return null
+  if (remainder === 0) return normalized
+  return normalized + '='.repeat(4 - remainder)
 }
 
 function findBase64(obj) {
   if (!obj) return null
-  if (typeof obj === 'string' && isLikelyBase64(obj)) return obj.replace(/\s+/g, '')
-  if (typeof obj === 'string' && obj.startsWith('data:')) return obj.split(',')[1]?.replace(/\s+/g, '') || null
+  if (typeof obj === 'string' && isLikelyBase64(obj)) return normalizeBase64(obj)
+  if (typeof obj === 'string' && obj.startsWith('data:')) return normalizeBase64(obj.split(',')[1] || '')
   if (typeof obj === 'object') {
     for (const k of Object.keys(obj)) {
       const v = obj[k]
-      if (typeof v === 'string' && isLikelyBase64(v)) return v.replace(/\s+/g, '')
-      if (typeof v === 'string' && v.startsWith('data:')) return v.split(',')[1]?.replace(/\s+/g, '') || null
+      if (typeof v === 'string' && isLikelyBase64(v)) return normalizeBase64(v)
+      if (typeof v === 'string' && v.startsWith('data:')) return normalizeBase64(v.split(',')[1] || '')
       if (typeof v === 'object') {
         const found = findBase64(v)
         if (found) return found
@@ -32,9 +41,9 @@ source: ComfyUI
 date: ${date}
 ---
 
-# ${imageName ? 'ComfyUI Output' : 'ComfyUI Response'}
+# ComfyUI Response
 
-${imageName ? `![[${imageName}]]` : ''}
+${imageName ? `Image:\n\n![[${imageName}]]\n` : ''}
 
 ---
 
