@@ -48,7 +48,7 @@ function findBase64(obj) {
 }
 
 function buildObsidianMarkdown(response, date, imageName = null) {
-  const safeJson = JSON.stringify(response, null, 2).replaceAll('```', '\\`\\`\\`')
+  const formattedJson = JSON.stringify(response, null, 2)
 
   return `---
 source: ComfyUI
@@ -63,9 +63,9 @@ ${imageName ? `Image:\n\n![[${imageName}]]\n` : ''}
 
 JSON response:
 
-\`\`\`json
-${safeJson}
-\`\`\`
+\`\`\`\`json
+${formattedJson}
+\`\`\`\`
 `
 }
 
@@ -116,7 +116,7 @@ export default function App() {
         download(imageName, blob)
         markdownImageName = imageName
       } catch (err) {
-        console.error('Failed to decode detected base64 image data. The image payload may be malformed or truncated.', err)
+        console.error('Failed to decode base64 image data; continuing without image export. The payload may be malformed or truncated.', err)
       }
     }
     const md = buildObsidianMarkdown(response, date, markdownImageName)
