@@ -1,13 +1,6 @@
 import React, { useState } from 'react'
 import { sendComfyRequest } from './api'
 
-function isLikelyBase64(value, minLength = 100) {
-  if (typeof value !== 'string') return false
-  const normalized = normalizeBase64(value)
-  if (!normalized || normalized.length < minLength) return false
-  return /^(?:[A-Za-z0-9+/]+={0,2})$/.test(normalized)
-}
-
 function normalizeBase64(value) {
   if (typeof value !== 'string') return null
   const normalized = value.replace(/\s+/g, '')
@@ -17,15 +10,31 @@ function normalizeBase64(value) {
   return normalized + '='.repeat(4 - remainder)
 }
 
+function getNormalizedBase64(value, minLength = 100) {
+  if (typeof value !== 'string') return null
+  const normalized = normalizeBase64(value)
+  if (!normalized || normalized.length < minLength) return null
+  if (!/^(?:[A-Za-z0-9+/]+={0,2})$/.test(normalized)) return null
+  return normalized
+}
+
 function findBase64(obj) {
   if (!obj) return null
-  if (typeof obj === 'string' && isLikelyBase64(obj)) return normalizeBase64(obj)
-  if (typeof obj === 'string' && obj.startsWith('data:')) return normalizeBase64(obj.split(',')[1] || '')
+  if (typeof obj === 'string') {
+    if (obj.startsWith('data:')) return getNormalizedBase64(obj.split(',')[1] || '')
+    return getNormalizedBase64(obj)
+  }
   if (typeof obj === 'object') {
     for (const k of Object.keys(obj)) {
       const v = obj[k]
-      if (typeof v === 'string' && isLikelyBase64(v)) return normalizeBase64(v)
-      if (typeof v === 'string' && v.startsWith('data:')) return normalizeBase64(v.split(',')[1] || '')
+      if (typeof v === 'string') {
+        if (v.startsWith('data:')) {
+          const normalizedDataUrl = getNormalizedBase64(v.split(',')[1] || '')
+          if (normalizedDataUrl) return normalizedDataUrl
+        }
+        const normalized = getNormalizedBase64(v)
+        if (normalized) return normalized
+      }
       if (typeof v === 'object') {
         const found = findBase64(v)
         if (found) return found
@@ -102,7 +111,7 @@ export default function App() {
         download(imageName, blob)
         markdownImageName = imageName
       } catch (err) {
-        console.error('Failed to decode detected base64 image data', err)
+        console.error('Failed to decode detected base64 image data. The image payload may be malformed or truncated.', err)
       }
     }
     const md = buildObsidianMarkdown(response, date, markdownImageName)
