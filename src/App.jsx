@@ -3,6 +3,7 @@ import { sendComfyRequest } from './api'
 
 const WHITESPACE_RE = /\s+/g
 const BASE64_RE = /^(?:[A-Za-z0-9+/]+={0,2})$/
+const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10]
 
 function normalizeBase64(value) {
   if (typeof value !== 'string') return null
@@ -21,8 +22,45 @@ function getNormalizedBase64(value, minLength = 100) {
   return normalized
 }
 
+function looksLikePngBytes(bytes) {
+  if (!bytes || bytes.length < PNG_SIGNATURE.length) return false
+  for (let i = 0; i < PNG_SIGNATURE.length; i++) {
+    if (bytes[i] !== PNG_SIGNATURE[i]) return false
+  }
+  return true
+}
+
+function bytesToBase64(bytes) {
+  if (!bytes || bytes.length === 0) return null
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  return btoa(binary)
+}
+
+function getBase64FromByteArray(value, minLength = 100) {
+  if (!value) return null
+  let bytes = null
+
+  if (value instanceof Uint8Array) {
+    bytes = value
+  } else if (Array.isArray(value)) {
+    if (!value.every(n => Number.isInteger(n) && n >= 0 && n <= 255)) return null
+    bytes = Uint8Array.from(value)
+  }
+
+  if (!bytes || bytes.length < minLength) return null
+  if (!looksLikePngBytes(bytes)) return null
+  return bytesToBase64(bytes)
+}
+
 function findBase64(obj) {
   if (!obj) return null
+  const bytesAsBase64 = getBase64FromByteArray(obj)
+  if (bytesAsBase64) return bytesAsBase64
   if (typeof obj === 'string') {
     if (obj.startsWith('data:')) return getNormalizedBase64(obj.split(',')[1] || '')
     return getNormalizedBase64(obj)
@@ -76,6 +114,7 @@ export default function App() {
   const [body, setBody] = useState('')
   const [response, setResponse] = useState(null)
   const [loading, setLoading] = useState(false)
+  const detectedImageBase64 = response ? findBase64(response) : null
 
   async function send() {
     setLoading(true)
@@ -101,7 +140,7 @@ export default function App() {
 
   function saveToObsidian() {
     if (!response) return
-    const b64 = findBase64(response)
+    const b64 = detectedImageBase64
     const timestamp = new Date().toISOString().replace(/[:.]/g,'-')
     const date = new Date().toISOString()
     const imageName = `comfyui-output-${timestamp}.png`
@@ -153,6 +192,7 @@ export default function App() {
 
       <h2>Response</h2>
       <div className="response">
+        {response && <p>{detectedImageBase64 ? 'Embedded PNG bytes detected.' : 'No embedded PNG bytes detected.'}</p>}
         <pre>{response ? JSON.stringify(response, null, 2) : 'No response yet'}</pre>
       </div>
     </div>
