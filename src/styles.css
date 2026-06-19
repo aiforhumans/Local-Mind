@@ -1,0 +1,11 @@
+body { font-family: Inter, system-ui, Arial; margin: 20px; background:#f7f7fb; color:#111 }
+.container { max-width:900px; margin:0 auto; padding:20px; background:white; border-radius:8px; box-shadow:0 6px 20px rgba(16,24,40,0.06)}
+.row { margin-bottom:12px; display:flex; flex-direction:column }
+.row.small { flex-direction:row; gap:12px; align-items:center }
+label { font-weight:600; margin-bottom:6px }
+input, textarea, select { padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:14px }
+textarea { min-height:120px; font-family: monospace }
+.buttons { display:flex; gap:10px }
+button { padding:8px 12px; border-radius:6px; border:0; background:#0f62fe; color:white; cursor:pointer }
+button[disabled] { opacity:0.5; cursor:default }
+.response pre { background:#0f1724; color:#e6eef8; padding:12px; border-radius:6px; overflow:auto }
